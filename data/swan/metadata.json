@@ -1,0 +1,45 @@
+{
+    "dataset_name": "SWAN-SF (Space Weather ANalytics for Solar Flares)",
+    "source": "Cleaned-SWANSF / SDO-HMI Space Magnetogram Specification",
+    "sequence_length": 60,
+    "feature_count": 24,
+    "feature_names": [
+        "USFLUX",
+        "TOTUSJH",
+        "TOTPOT",
+        "TOTUSJX",
+        "ABSNJ_ZH",
+        "SAVNCPP",
+        "AREA_ACR",
+        "MEANPOT",
+        "R_VALUE",
+        "ABSNJ_ZY",
+        "MEANJ_ZH",
+        "MEANSHR",
+        "MEANALP",
+        "MEANGAM",
+        "MEANGBZ",
+        "MEANGBT",
+        "MEANGBH",
+        "MEANJ_ZY",
+        "SHRGT45",
+        "USFLUX_L",
+        "EPSX",
+        "EPSY",
+        "EPSZ",
+        "R_VALUE_L"
+    ],
+    "train_samples": 80,
+    "val_samples": 30,
+    "test_samples": 40,
+    "test_anomalous_sequences": 14,
+    "test_normal_sequences": 26,
+    "continuous_train_shape": [
+        4800,
+        24
+    ],
+    "continuous_test_shape": [
+        2400,
+        24
+    ]
+}

@@ -1,0 +1,221 @@
+import React from 'react';
+import { Target, Layers, GitMerge, Sliders, Info, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { useAnalysis } from '../contexts/AnalysisContext';
+
+export default function ScoreCards() {
+  const { results, selectedPointIndex, alpha, alphaMode, autoAlphaMeta, updateAlphaManually } = useAnalysis();
+
+  // If no results yet
+  if (!results) {
+    return (
+      <div className="p-6 rounded-2xl bg-white/70 dark:bg-plum-950/60 border border-plum-900/10 dark:border-coral-300/15 text-center text-plum-800 dark:text-cream-200">
+        <Info className="w-8 h-8 mx-auto mb-2 text-berry-600 dark:text-coral-300" />
+        <p className="font-heading font-medium text-sm">
+          Run anomaly detection to view real point-level, sequence-level, and combined scores.
+        </p>
+      </div>
+    );
+  }
+
+  const effectiveAlpha = results?.alpha !== undefined && results?.alpha !== null
+    ? Number(results.alpha)
+    : (alpha !== undefined && alpha !== null ? Number(alpha) : 0.5);
+
+  const totalObs = results?.timestamps?.length || results?.feature_values?.length || 0;
+  const hasSelectedPoint = selectedPointIndex !== null && selectedPointIndex !== undefined && selectedPointIndex >= 0 && selectedPointIndex < totalObs;
+  const pointScore = hasSelectedPoint && results.point_scores && results.point_scores[selectedPointIndex] !== undefined ? results.point_scores[selectedPointIndex] : null;
+  const seqScore = hasSelectedPoint && results.sequence_scores && results.sequence_scores[selectedPointIndex] !== undefined ? results.sequence_scores[selectedPointIndex] : null;
+  const combinedScore = hasSelectedPoint && results.combined_scores && results.combined_scores[selectedPointIndex] !== undefined ? results.combined_scores[selectedPointIndex] : null;
+  const isAnomaly = hasSelectedPoint && results.predictions && results.predictions[selectedPointIndex] !== undefined ? results.predictions[selectedPointIndex] === 1 : false;
+
+  // Contributions according to formula: C(t) = alpha * P(t) + (1 - alpha) * S(t)
+  const pointContrib = pointScore !== null ? effectiveAlpha * pointScore : null;
+  const seqContrib = seqScore !== null ? (1.0 - effectiveAlpha) * seqScore : null;
+
+  const formatScore = (val, digits = 6) => {
+    if (val === null || val === undefined || isNaN(val)) return 'Not available';
+    return Number(val).toFixed(digits);
+  };
+
+  return (
+    <div className="space-y-4" id="lftsad-score-cards-container">
+      {/* Observation context banner */}
+      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 rounded-xl bg-cream-100 dark:bg-plum-900/60 border border-plum-900/10 dark:border-coral-300/20 text-xs">
+        <div className="flex items-center space-x-2">
+          <span className="font-heading font-semibold text-plum-900 dark:text-cream-200">
+            Observation Focus:
+          </span>
+          {hasSelectedPoint ? (
+            <span className="font-mono px-2 py-0.5 rounded bg-berry-600 text-white font-bold">
+              Index #{selectedPointIndex}
+            </span>
+          ) : (
+            <span className="text-berry-700 dark:text-coral-300 italic">
+              No point clicked — showing overall dataset summary
+            </span>
+          )}
+          {hasSelectedPoint && (
+            <span
+              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded font-semibold text-[11px] ${
+                isAnomaly
+                  ? 'bg-red-500/15 text-red-700 dark:text-red-300 border border-red-500/30'
+                  : 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border border-emerald-500/30'
+              }`}
+            >
+              {isAnomaly ? (
+                <>
+                  <AlertTriangle className="w-3 h-3" /> Flagged Anomaly
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="w-3 h-3" /> Normal Observation
+                </>
+              )}
+            </span>
+          )}
+        </div>
+        <div className="text-[11px] text-plum-800/80 dark:text-cream-200/80">
+          Detection Threshold: <span className="font-mono font-semibold text-berry-700 dark:text-coral-300">{formatScore(results.threshold)}</span>
+        </div>
+      </div>
+
+      {/* Grid of the 4 Essential Score Cards in Exact Order */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* CARD 1: POINT-LEVEL SCORE */}
+        <div className="card-theme p-5 rounded-2xl relative overflow-hidden flex flex-col justify-between">
+          <div className="flex items-start justify-between">
+            <div className="w-9 h-9 rounded-xl bg-plum-700/10 dark:bg-coral-300/10 text-plum-700 dark:text-coral-300 flex items-center justify-center mb-3">
+              <Target className="w-5 h-5" />
+            </div>
+            <span className="font-mono text-[10px] uppercase tracking-wider text-berry-700 dark:text-coral-300 font-bold px-1.5 py-0.5 rounded bg-cream-200/60 dark:bg-plum-900/60">
+              Card 1
+            </span>
+          </div>
+          <div>
+            <h3 className="font-heading text-xs font-bold uppercase tracking-wider text-plum-900 dark:text-cream-200 mb-1">
+              Point-Level Score P(t)
+            </h3>
+            <div className="font-mono text-2xl font-bold text-plum-900 dark:text-cream-100 my-1 tabular-nums">
+              {hasSelectedPoint ? formatScore(pointScore) : 'Select a point'}
+            </div>
+            <p className="text-xs text-plum-800/80 dark:text-coral-200/80 mt-2 leading-relaxed">
+              &ldquo;How unusual is this individual reading?&rdquo;
+            </p>
+          </div>
+          <div className="mt-3 pt-2.5 border-t border-plum-900/10 dark:border-coral-300/10 text-[11px] text-plum-700 dark:text-coral-300/80 flex items-center justify-between">
+            <span>Discrepancy P(t)</span>
+            <span className="font-mono">{hasSelectedPoint && pointContrib !== null ? `α·P = ${formatScore(pointContrib, 6)}` : 'P(t)'}</span>
+          </div>
+        </div>
+
+        {/* CARD 2: SEQUENCE-LEVEL SCORE */}
+        <div className="card-theme p-5 rounded-2xl relative overflow-hidden flex flex-col justify-between">
+          <div className="flex items-start justify-between">
+            <div className="w-9 h-9 rounded-xl bg-berry-600/10 text-berry-600 dark:text-coral-300 flex items-center justify-center mb-3">
+              <Layers className="w-5 h-5" />
+            </div>
+            <span className="font-mono text-[10px] uppercase tracking-wider text-berry-700 dark:text-coral-300 font-bold px-1.5 py-0.5 rounded bg-cream-200/60 dark:bg-plum-900/60">
+              Card 2
+            </span>
+          </div>
+          <div>
+            <h3 className="font-heading text-xs font-bold uppercase tracking-wider text-plum-900 dark:text-cream-200 mb-1">
+              Sequence-Level Score S(t)
+            </h3>
+            <div className="font-mono text-2xl font-bold text-berry-700 dark:text-coral-300 my-1 tabular-nums">
+              {hasSelectedPoint ? formatScore(seqScore) : 'Select a point'}
+            </div>
+            <p className="text-xs text-plum-800/80 dark:text-coral-200/80 mt-2 leading-relaxed">
+              &ldquo;How unusual is this reading within its surrounding pattern?&rdquo;
+            </p>
+          </div>
+          <div className="mt-3 pt-2.5 border-t border-plum-900/10 dark:border-coral-300/10 text-[11px] text-plum-700 dark:text-coral-300/80 flex items-center justify-between">
+            <span>Contextual Discrepancy S(t)</span>
+            <span className="font-mono">{hasSelectedPoint && seqContrib !== null ? `(1-α)·S = ${formatScore(seqContrib, 6)}` : 'S(t)'}</span>
+          </div>
+        </div>
+
+        {/* CARD 3: COMBINED SCORE */}
+        <div className="card-theme p-5 rounded-2xl relative overflow-hidden flex flex-col justify-between bg-gradient-to-b from-white to-cream-50/50 dark:from-plum-900/40 dark:to-plum-950/40 border-2 border-berry-600/20 dark:border-coral-300/30">
+          <div className="flex items-start justify-between">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-plum-700 to-berry-600 text-cream-100 flex items-center justify-center mb-3 shadow-xs">
+              <GitMerge className="w-5 h-5" />
+            </div>
+            <span className="font-mono text-[10px] uppercase tracking-wider text-white font-bold px-1.5 py-0.5 rounded bg-berry-600 shadow-xs">
+              Card 3
+            </span>
+          </div>
+          <div>
+            <h3 className="font-heading text-xs font-bold uppercase tracking-wider text-plum-900 dark:text-cream-200 mb-1">
+              Combined Score C(t)
+            </h3>
+            <div className="font-mono text-2xl font-bold text-plum-900 dark:text-[#FFEBB8] my-1 tabular-nums">
+              {hasSelectedPoint ? formatScore(combinedScore) : 'Select a point'}
+            </div>
+            <p className="text-xs text-plum-800/80 dark:text-coral-200/80 mt-2 leading-relaxed">
+              &ldquo;The combined anomaly score produced by the model.&rdquo;
+            </p>
+          </div>
+          <div className="mt-3 pt-2.5 border-t border-plum-900/10 dark:border-coral-300/10 text-[11px] text-plum-700 dark:text-coral-300/80 flex items-center justify-between">
+            <span className="font-mono">
+              {hasSelectedPoint && pointContrib !== null && seqContrib !== null
+                ? `${formatScore(pointContrib, 4)} + ${formatScore(seqContrib, 4)}`
+                : 'α·P + (1-α)·S'}
+            </span>
+            <span className={`font-semibold ${isAnomaly ? 'text-red-500 font-bold' : 'text-emerald-600 dark:text-emerald-400 font-semibold'}`}>
+              {hasSelectedPoint ? (isAnomaly ? 'Exceeds Threshold' : 'Within Bounds') : ''}
+            </span>
+          </div>
+        </div>
+
+        {/* CARD 4: ALPHA (α) */}
+        <div className="card-theme p-5 rounded-2xl relative overflow-hidden flex flex-col justify-between">
+          <div className="flex items-start justify-between">
+            <div className="w-9 h-9 rounded-xl bg-coral-300/20 text-berry-700 dark:text-coral-300 flex items-center justify-center mb-3">
+              <Sliders className="w-5 h-5" />
+            </div>
+            <span className="font-mono text-[10px] uppercase tracking-wider text-berry-700 dark:text-coral-300 font-bold px-1.5 py-0.5 rounded bg-cream-200/60 dark:bg-plum-900/60">
+              Card 4
+            </span>
+          </div>
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <h3 className="font-heading text-xs font-bold uppercase tracking-wider text-plum-900 dark:text-cream-200">
+                Alpha (α)
+              </h3>
+              <span
+                className={`text-[10px] font-mono px-1.5 py-0.5 rounded-full font-bold ${
+                  alphaMode === 'auto'
+                    ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300'
+                    : 'bg-amber-500/20 text-amber-800 dark:text-amber-300'
+                }`}
+              >
+                {alphaMode === 'auto' ? 'AUTOMATIC' : 'MANUAL'}
+              </span>
+            </div>
+            <div className="font-mono text-2xl font-bold text-plum-900 dark:text-cream-100 my-1 tabular-nums flex items-baseline gap-2">
+              <span>{Number(effectiveAlpha).toFixed(2)}</span>
+              <span className="text-xs text-berry-600 dark:text-coral-300 font-normal">
+                ({Math.round(effectiveAlpha * 100)}% Point / {Math.round((1 - effectiveAlpha) * 100)}% Seq)
+              </span>
+            </div>
+            <p className="text-xs text-plum-800/80 dark:text-coral-200/80 mt-2 leading-relaxed">
+              &ldquo;Controls how much importance is given to the point-level score compared with the sequence-level score.&rdquo;
+            </p>
+          </div>
+          <div className="mt-3 pt-2.5 border-t border-plum-900/10 dark:border-coral-300/10 text-[11px] text-plum-700 dark:text-coral-300/80">
+            {alphaMode === 'auto' ? (
+              <span className="truncate block" title="Calibrated via unsupervised discrepancy variance separation">
+                Criterion: {autoAlphaMeta?.selection_criterion || 'Discrepancy Separation'}
+              </span>
+            ) : (
+              <span className="text-berry-700 dark:text-coral-300 font-medium">
+                Adjustable via manual slider below
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

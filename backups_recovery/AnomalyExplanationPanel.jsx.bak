@@ -1,0 +1,195 @@
+import React from 'react';
+import { AlertCircle, HelpCircle, Activity, Sparkles, ShieldAlert, CheckCircle2, ArrowRight } from 'lucide-react';
+import { useAnalysis } from '../contexts/AnalysisContext';
+
+export default function AnomalyExplanationPanel() {
+  const { results, selectedPointIndex, selectedFeature, alpha } = useAnalysis();
+
+  if (!results || selectedPointIndex === null || selectedPointIndex === undefined) {
+    return (
+      <div className="card-theme rounded-2xl p-6 text-center text-plum-800 dark:text-cream-200">
+        <HelpCircle className="w-8 h-8 mx-auto text-berry-600 dark:text-coral-300 mb-2" />
+        <h4 className="font-heading font-semibold text-sm">Select an Observation</h4>
+        <p className="text-xs text-plum-700/80 dark:text-cream-300/70 mt-1">
+          Click any red anomaly marker or time-series observation on the graph above to view its plain-English explanation.
+        </p>
+      </div>
+    );
+  }
+
+  const idx = selectedPointIndex;
+  const isAnomaly = results.predictions ? results.predictions[idx] === 1 : false;
+  const measuredVal = results.feature_values ? results.feature_values[idx] : null;
+  const ptScore = results.point_scores ? results.point_scores[idx] : null;
+  const seqScore = results.sequence_scores ? results.sequence_scores[idx] : null;
+  const combScore = results.combined_scores ? results.combined_scores[idx] : null;
+  const threshold = results.threshold;
+  const timestamp = results.timestamps ? results.timestamps[idx] : `t_${idx}`;
+
+  // Calculate nearby mean and trend from real data
+  let nearbyAvg = null;
+  let deviationDesc = 'consistent with surrounding values';
+  if (results.feature_values && results.feature_values.length > 0) {
+    const start = Math.max(0, idx - 5);
+    const end = Math.min(results.feature_values.length, idx + 6);
+    const windowVals = results.feature_values.slice(start, end).filter((_, i) => (start + i) !== idx);
+    if (windowVals.length > 0) {
+      nearbyAvg = windowVals.reduce((a, b) => a + b, 0) / windowVals.length;
+      const diff = Math.abs(measuredVal - nearbyAvg);
+      if (diff > 0.5) {
+        deviationDesc = measuredVal > nearbyAvg
+          ? `noticeably elevated above the local 10-step mean of ${nearbyAvg.toFixed(3)}`
+          : `noticeably depressed below the local 10-step mean of ${nearbyAvg.toFixed(3)}`;
+      } else {
+        deviationDesc = `closely tracks the local window mean of ${nearbyAvg.toFixed(3)}`;
+      }
+    }
+  }
+
+  // Related variable discrepancy from real model output if available
+  const topCorrelatedFeature = results.top_correlated_features
+    ? results.top_correlated_features[0]
+    : null;
+
+  return (
+    <div className="card-theme rounded-2xl p-6 shadow-md space-y-5" id="anomaly-details-panel">
+      {/* Header with status badge */}
+      <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-plum-900/10 dark:border-coral-300/15">
+        <div className="flex items-center space-x-3">
+          <div
+            className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+              isAnomaly
+                ? 'bg-red-500/15 text-red-600 dark:text-red-400'
+                : 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+            }`}
+          >
+            {isAnomaly ? <ShieldAlert className="w-5 h-5" /> : <CheckCircle2 className="w-5 h-5" />}
+          </div>
+          <div>
+            <h3 className="font-heading font-bold text-base text-plum-900 dark:text-cream-200">
+              {isAnomaly ? 'Unusual Reading Detected' : 'Nominal Observation Verified'}
+            </h3>
+            <p className="text-xs font-mono text-berry-700 dark:text-coral-300">
+              Observation #{idx} &bull; Timestamp: {timestamp} &bull; Feature: {selectedFeature}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center space-x-2">
+          <span
+            className={`px-3 py-1 rounded-full text-xs font-mono font-bold tracking-wide ${
+              isAnomaly
+                ? 'bg-red-600 text-white shadow-xs'
+                : 'bg-emerald-600 text-white shadow-xs'
+            }`}
+          >
+            {isAnomaly ? 'FLAGGED ANOMALY' : 'NORMAL PATTERN'}
+          </span>
+        </div>
+      </div>
+
+      {/* Plain-English Interpretation Section */}
+      <div className="p-4 rounded-xl bg-cream-50/80 dark:bg-plum-900/50 border border-plum-900/10 dark:border-coral-300/15 space-y-2.5">
+        <h4 className="font-heading text-xs font-bold uppercase tracking-wider text-berry-800 dark:text-coral-300 flex items-center gap-1.5">
+          <Sparkles className="w-3.5 h-3.5" /> Plain-English Interpretation
+        </h4>
+        <div className="text-sm text-plum-900 dark:text-cream-100 leading-relaxed space-y-2">
+          {isAnomaly ? (
+            <>
+              <p>
+                <strong>Unusual reading detected.</strong> This observation recorded a normalized value of{' '}
+                <span className="font-mono font-semibold text-berry-700 dark:text-coral-300">
+                  {measuredVal !== null ? measuredVal.toFixed(4) : 'N/A'}
+                </span>
+                , which is {deviationDesc}.
+              </p>
+              <p>
+                The model assigned it an anomaly score of{' '}
+                <span className="font-mono font-bold text-red-600 dark:text-red-400">
+                  {combScore !== null ? combScore.toFixed(6) : 'N/A'}
+                </span>
+                , exceeding the threshold of{' '}
+                <span className="font-mono font-semibold text-plum-900 dark:text-cream-200">
+                  {threshold !== null ? threshold.toFixed(6) : 'N/A'}
+                </span>
+                . The point-level reconstruction discrepancy was{' '}
+                <span className="font-mono font-semibold">{ptScore !== null ? ptScore.toFixed(6) : 'N/A'}</span>, while the sequence pattern discrepancy was{' '}
+                <span className="font-mono font-semibold">{seqScore !== null ? seqScore.toFixed(6) : 'N/A'}</span>.
+              </p>
+              {topCorrelatedFeature && (
+                <p className="text-xs text-berry-800 dark:text-coral-200">
+                  Related physical variable <span className="font-mono font-bold">{topCorrelatedFeature.name}</span> displayed an aligned correlation response (correlation: {topCorrelatedFeature.correlation.toFixed(2)}).
+                </p>
+              )}
+              <div className="mt-3 p-3 rounded-lg bg-amber-500/10 border border-amber-500/25 text-xs text-amber-900 dark:text-amber-200 leading-relaxed">
+                <strong>Scientific Caution:</strong> This result identifies a statistical deviation from reconstructed regular solar or sensor dynamics. It indicates an unusual pattern, but does not prove on its own that an eruptive flare or physical hardware fault occurred without corroborating domain confirmation.
+              </div>
+            </>
+          ) : (
+            <>
+              <p>
+                <strong>Observation conforms to expected baseline behavior.</strong> The measured reading of{' '}
+                <span className="font-mono font-semibold text-berry-700 dark:text-coral-300">
+                  {measuredVal !== null ? measuredVal.toFixed(4) : 'N/A'}
+                </span>{' '}
+                was successfully reconstructed by the neural network with minimal discrepancy.
+              </p>
+              <p>
+                Its combined anomaly score of{' '}
+                <span className="font-mono font-semibold text-emerald-700 dark:text-emerald-300">
+                  {combScore !== null ? combScore.toFixed(6) : 'N/A'}
+                </span>{' '}
+                remains comfortably below the detection threshold of{' '}
+                <span className="font-mono font-semibold">{threshold !== null ? threshold.toFixed(6) : 'N/A'}</span>. Both individual point dynamics and temporal sequence flow align with quiet solar background patterns.
+              </p>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Observation Evidence Summary Table */}
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs text-left text-plum-900 dark:text-cream-200 border-collapse">
+          <thead>
+            <tr className="border-b border-plum-900/10 dark:border-coral-300/20 text-berry-800 dark:text-coral-300 font-heading font-semibold">
+              <th className="py-2 px-3">Metric</th>
+              <th className="py-2 px-3">Actual Value</th>
+              <th className="py-2 px-3">Threshold / Setting</th>
+              <th className="py-2 px-3">Scientific Meaning</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-plum-900/5 dark:divide-coral-300/10 font-mono">
+            <tr>
+              <td className="py-2 px-3 font-sans font-medium text-plum-800 dark:text-cream-300">Measured Signal</td>
+              <td className="py-2 px-3 font-bold">{measuredVal !== null ? measuredVal.toFixed(4) : 'N/A'}</td>
+              <td className="py-2 px-3 text-plum-600 dark:text-cream-300/70">—</td>
+              <td className="py-2 px-3 font-sans text-plum-700 dark:text-cream-300/80">Normalized sensor magnitude</td>
+            </tr>
+            <tr>
+              <td className="py-2 px-3 font-sans font-medium text-plum-800 dark:text-cream-300">Point Score (P)</td>
+              <td className="py-2 px-3 font-bold">{ptScore !== null ? ptScore.toFixed(6) : 'N/A'}</td>
+              <td className="py-2 px-3 text-plum-600 dark:text-cream-300/70">—</td>
+              <td className="py-2 px-3 font-sans text-plum-700 dark:text-cream-300/80">Single timestep reconstruction error</td>
+            </tr>
+            <tr>
+              <td className="py-2 px-3 font-sans font-medium text-plum-800 dark:text-cream-300">Sequence Score (S)</td>
+              <td className="py-2 px-3 font-bold">{seqScore !== null ? seqScore.toFixed(6) : 'N/A'}</td>
+              <td className="py-2 px-3 text-plum-600 dark:text-cream-300/70">—</td>
+              <td className="py-2 px-3 font-sans text-plum-700 dark:text-cream-300/80">Contextual window reconstruction error</td>
+            </tr>
+            <tr>
+              <td className="py-2 px-3 font-sans font-medium text-plum-800 dark:text-cream-300">Combined Score</td>
+              <td className={`py-2 px-3 font-bold ${isAnomaly ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-300'}`}>
+                {combScore !== null ? combScore.toFixed(6) : 'N/A'}
+              </td>
+              <td className="py-2 px-3 font-bold">{threshold !== null ? threshold.toFixed(6) : 'N/A'}</td>
+              <td className="py-2 px-3 font-sans text-plum-700 dark:text-cream-300/80">
+                α·P + (1-α)·S (α = {Number(alpha).toFixed(2)})
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
