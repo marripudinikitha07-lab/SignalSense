@@ -29,3 +29,27 @@ class ExportRequest(BaseModel):
     model_type: str
     feature_name: str
     format: str = "csv"
+
+# --- Authentication Schemas ---
+
+class UserRegisterRequest(BaseModel):
+    name: str = Field(..., min_length=2, max_length=100, description="User full name")
+    email: str = Field(..., min_length=5, max_length=150, description="User email address")
+    password: str = Field(..., min_length=8, max_length=128, description="User password (min 8 characters)")
+    confirm_password: Optional[str] = Field(None, description="Password confirmation")
+
+class UserLoginRequest(BaseModel):
+    email: str = Field(..., min_length=5, max_length=150)
+    password: str = Field(..., min_length=1, max_length=128)
+
+class UserResponse(BaseModel):
+    id: int
+    name: str
+    email: str
+    created_at: Optional[str] = None
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: UserResponse
+

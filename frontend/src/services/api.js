@@ -1,5 +1,49 @@
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
+export function getAuthHeaders() {
+  const token = localStorage.getItem('signalsense_auth_token');
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+export async function registerUser({ name, email, password, confirm_password }) {
+  const res = await fetch(`${API_BASE}/auth/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, email, password, confirm_password }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Registration failed.' }));
+    throw new Error(err.detail || 'Registration failed.');
+  }
+  return res.json();
+}
+
+export async function loginUser({ email, password }) {
+  const res = await fetch(`${API_BASE}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Invalid credentials.' }));
+    throw new Error(err.detail || 'Invalid email or password.');
+  }
+  return res.json();
+}
+
+export async function fetchCurrentUser() {
+  const headers = getAuthHeaders();
+  if (!headers.Authorization) return null;
+  const res = await fetch(`${API_BASE}/auth/me`, { headers });
+  if (res.status === 401) {
+    localStorage.removeItem('signalsense_auth_token');
+    localStorage.removeItem('signalsense_auth_user');
+    return null;
+  }
+  if (!res.ok) throw new Error('Failed to verify authentication status');
+  return res.json();
+}
+
 export async function fetchHealth() {
   const res = await fetch(`${API_BASE}/health`);
   if (!res.ok) throw new Error('Backend health check failed');
@@ -27,8 +71,10 @@ export async function fetchDatasetPreview(datasetId = 'swan', limit = 100) {
 export async function uploadCsvFile(file) {
   const formData = new FormData();
   formData.append('file', file);
+  const headers = getAuthHeaders();
   const res = await fetch(`${API_BASE}/upload`, {
     method: 'POST',
+    headers,
     body: formData,
   });
   if (!res.ok) {
@@ -39,9 +85,13 @@ export async function uploadCsvFile(file) {
 }
 
 export async function runDetection(config) {
+  const headers = {
+    'Content-Type': 'application/json',
+    ...getAuthHeaders(),
+  };
   const res = await fetch(`${API_BASE}/detect`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify(config),
   });
   if (!res.ok) {

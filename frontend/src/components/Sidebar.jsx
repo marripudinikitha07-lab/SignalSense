@@ -1,5 +1,5 @@
 import React from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
 import {
   Activity,
   Database,
@@ -10,18 +10,26 @@ import {
   Menu,
   X,
   Radio,
+  Lock,
+  LogOut,
+  LogIn,
+  User,
 } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 
 const navItems = [
   { name: 'Overview / Home', path: '/', icon: Activity },
   { name: 'Dataset Explorer', path: '/dataset', icon: Database },
-  { name: 'Anomaly Detection', path: '/detect', icon: Search },
+  { name: 'Anomaly Detection', path: '/detect', icon: Search, protected: true },
   { name: 'Research Improvements', path: '/improvements', icon: Sparkles },
   { name: 'Model Comparison', path: '/comparison', icon: GitCompare },
   { name: 'Methodology / About', path: '/methodology', icon: BookOpen },
 ];
 
 export default function Sidebar({ isOpen, setIsOpen }) {
+  const { user, isAuthenticated, logout } = useAuth();
+  const navigate = useNavigate();
+
   return (
     <>
       {/* Mobile backdrop */}
@@ -76,32 +84,84 @@ export default function Sidebar({ isOpen, setIsOpen }) {
                 end={item.path === '/'}
                 onClick={() => setIsOpen(false)}
                 className={({ isActive }) =>
-                  `flex items-center space-x-3 px-3.5 py-3 rounded-xl text-sm font-medium transition-all duration-150 ${
+                  `flex items-center justify-between px-3.5 py-3 rounded-xl text-sm font-medium transition-all duration-150 ${
                     isActive
                       ? 'bg-[#BD5579] text-white shadow-sm font-semibold translate-x-1'
                       : 'text-[#FFEBB8]/85 hover:text-white hover:bg-plum-800/70 hover:translate-x-0.5'
                   }`
                 }
               >
-                <Icon className="w-4 h-4 shrink-0 text-[#EA9D9D]" />
-                <span className="font-heading truncate">{item.name}</span>
+                <div className="flex items-center space-x-3 truncate">
+                  <Icon className="w-4 h-4 shrink-0 text-[#EA9D9D]" />
+                  <span className="font-heading truncate">{item.name}</span>
+                </div>
+                {item.protected && !isAuthenticated && (
+                  <span title="Login required" className="text-[#EA9D9D]/70 ml-2">
+                    <Lock className="w-3.5 h-3.5" />
+                  </span>
+                )}
               </NavLink>
             );
           })}
         </nav>
 
+        {/* User Account / Auth Section in Sidebar */}
+        <div className="px-4 py-3 mx-4 rounded-xl bg-plum-900/60 border border-berry-700/30 text-xs">
+          {isAuthenticated && user ? (
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2.5 min-w-0">
+                <div className="w-7 h-7 rounded-full bg-berry-600 text-white flex items-center justify-center font-bold text-xs shrink-0">
+                  {(user.name || user.email || 'U').charAt(0).toUpperCase()}
+                </div>
+                <div className="min-w-0">
+                  <p className="font-semibold text-[#FFEBB8] text-xs truncate">
+                    {user.name || 'Researcher'}
+                  </p>
+                  <p className="text-[10px] text-[#EA9D9D] truncate">
+                    {user.email}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  logout();
+                  navigate('/login');
+                }}
+                title="Sign out"
+                className="p-1.5 rounded-lg text-[#EA9D9D] hover:text-white hover:bg-plum-800 transition-colors shrink-0"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            </div>
+          ) : (
+            <NavLink
+              to="/login"
+              onClick={() => setIsOpen(false)}
+              className="flex items-center justify-between text-[#FFEBB8] hover:text-white transition-colors py-0.5"
+            >
+              <div className="flex items-center space-x-2">
+                <LogIn className="w-4 h-4 text-[#EA9D9D]" />
+                <span className="font-medium">Sign In / Register</span>
+              </div>
+              <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 bg-[#BD5579] rounded text-white">
+                Auth
+              </span>
+            </NavLink>
+          )}
+        </div>
+
         {/* SWAN Status Badge Footer */}
-        <div className="p-4 m-4 rounded-xl bg-plum-900/70 border border-berry-700/30 text-xs">
+        <div className="p-4 mx-4 mb-4 rounded-xl bg-plum-900/40 border border-berry-700/20 text-xs">
           <div className="flex items-center justify-between mb-1.5">
-            <span className="font-semibold text-[#FFEBB8] flex items-center gap-1.5">
+            <span className="font-semibold text-[#FFEBB8] flex items-center gap-1.5 text-[11px]">
               <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
               SWAN-SF Benchmark
             </span>
-            <span className="font-mono text-[10px] text-[#EA9D9D] bg-plum-950 px-1.5 py-0.5 rounded">
+            <span className="font-mono text-[9px] text-[#EA9D9D] bg-plum-950 px-1 py-0.5 rounded">
               v1.0
             </span>
           </div>
-          <p className="text-[11px] text-[#EA9D9D]/90 leading-relaxed">
+          <p className="text-[10px] text-[#EA9D9D]/80 leading-relaxed">
             Multi-spectral solar active region time-series with 24 physical magnetic parameters.
           </p>
         </div>
@@ -109,3 +169,4 @@ export default function Sidebar({ isOpen, setIsOpen }) {
     </>
   );
 }
+

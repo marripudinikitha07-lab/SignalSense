@@ -83,5 +83,60 @@ class TestSignalSenseAPI(unittest.TestCase):
         self.assertIn("models", data)
         self.assertEqual(len(data["models"]), 4)
 
+    def test_auth_full_cycle(self):
+        import uuid
+        test_email = f"user_{uuid.uuid4().hex[:6]}@testsignalsense.com"
+        test_pass = "SecurePass123!#"
+
+        # 1. Register new user
+        reg_payload = {
+            "name": "Dr. Sarah Connor",
+            "email": test_email,
+            "password": test_pass,
+            "confirm_password": test_pass,
+        }
+        reg_res = self.client.post("/api/auth/register", json=reg_payload)
+        self.assertEqual(reg_res.status_code, 200)
+        reg_data = reg_res.json()
+        self.assertIn("access_token", reg_data)
+        self.assertEqual(reg_data["user"]["email"], test_email.lower())
+        token = reg_data["access_token"]
+
+        # 2. Prevent duplicate email registration
+        dup_res = self.client.post("/api/auth/register", json=reg_payload)
+        self.assertEqual(dup_res.status_code, 400)
+        self.assertIn("already exists", dup_res.json()["detail"].lower())
+
+        # 3. Successful login
+        login_payload = {"email": test_email, "password": test_pass}
+        login_res = self.client.post("/api/auth/login", json=login_payload)
+        self.assertEqual(login_res.status_code, 200)
+        login_data = login_res.json()
+        self.assertIn("access_token", login_data)
+
+        # 4. Failed login with incorrect password
+        bad_login = self.client.post("/api/auth/login", json={"email": test_email, "password": "WrongPassword!"})
+        self.assertEqual(bad_login.status_code, 401)
+        self.assertIn("Invalid email or password", bad_login.json()["detail"])
+
+        # 5. Failed login with non-existent user
+        nonexistent_login = self.client.post("/api/auth/login", json={"email": "nobody@testsignalsense.com", "password": "AnyPassword!"})
+        self.assertEqual(nonexistent_login.status_code, 401)
+
+        # 6. Access protected /api/auth/me with valid Bearer token
+        headers = {"Authorization": f"Bearer {token}"}
+        me_res = self.client.get("/api/auth/me", headers=headers)
+        self.assertEqual(me_res.status_code, 200)
+        self.assertEqual(me_res.json()["user"]["email"], test_email.lower())
+
+        # 7. Access /api/auth/me without token returns 401
+        unauth_me = self.client.get("/api/auth/me")
+        self.assertEqual(unauth_me.status_code, 401)
+
+        # 8. Access /api/auth/me with invalid token returns 401
+        bad_token_me = self.client.get("/api/auth/me", headers={"Authorization": "Bearer invalid.token.value"})
+        self.assertEqual(bad_token_me.status_code, 401)
+
 if __name__ == "__main__":
     unittest.main()
+
